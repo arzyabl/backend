@@ -10,6 +10,8 @@ export interface PostOptions {
 export interface PostDoc extends BaseDoc {
   author: ObjectId;
   content: string;
+  group: ObjectId;
+  timePost: Date;
   options?: PostOptions;
 }
 
@@ -26,26 +28,25 @@ export default class PostingConcept {
     this.posts = new DocCollection<PostDoc>(collectionName);
   }
 
-  async create(author: ObjectId, content: string, options?: PostOptions) {
+  async addPost(author: ObjectId, content: string, options?: PostOptions) {
     const _id = await this.posts.createOne({ author, content, options });
     return { msg: "Post successfully created!", post: await this.posts.readOne({ _id }) };
   }
 
-  async getPosts() {
-    // Returns all posts! You might want to page for better client performance
-    return await this.posts.readMany({}, { sort: { _id: -1 } });
-  }
-
-  async getByAuthor(author: ObjectId) {
-    return await this.posts.readMany({ author });
-  }
-
-  async update(_id: ObjectId, content?: string, options?: PostOptions) {
-    // Note that if content or options is undefined, those fields will *not* be updated
-    // since undefined values for partialUpdateOne are ignored.
+  async editPost(author: ObjectId, _id: ObjectId, content?: string, options?: PostOptions) {
+    await this.assertAuthorIsUser(_id, author);  // Check if the author is the same
     await this.posts.partialUpdateOne({ _id }, { content, options });
     return { msg: "Post successfully updated!" };
   }
+
+  async viewPosts(group: ObjectId) {
+    return await this.posts.readMany({ group }, { sort: { timePost: -1 } });
+  }
+
+  async viewUserPosts(author: ObjectId) {
+    return await this.posts.readMany({ author }, { sort: { timePost: -1 } });
+  }
+
 
   async delete(_id: ObjectId) {
     await this.posts.deleteOne({ _id });
