@@ -29,21 +29,29 @@ export default class CirclingConcept {
         const _id = await this.circles.createOne({
             title,
             admin,
-            members: [],
+            members: [admin],
             capacity
           });
           return { msg: 'Circle successfully started!', circle: await this.circles.readOne({ _id }) };
     }
+
+    async getCircleById(_id: ObjectId) {
+        const circle = await this.circles.readOne({ _id });
+        if (circle === null) {
+          throw new NotFoundError(`Circle not found!`);
+        }
+        return circle;
+      }
+
 
     async joinCircle(user: ObjectId, circleId: ObjectId) {
         const circle = await this.circles.readOne({ _id: circleId });
         if (!circle) throw new NotFoundError(`Circle ${circleId} does not exist`);
         
         //assert not circle member
-        circle.members.push(participant);
+        circle.members.push(user);
         await this.circles.partialUpdateOne({ _id: circleId }, { members: circle.members });
         
-
         return { msg: "Joined the circle", circle };
       }
 
@@ -59,7 +67,21 @@ export default class CirclingConcept {
         return { msg: "Left the circl", circle };
       }
 
+      async renameCircle(admin: ObjectId, newTitle: String, circleId: ObjectId) {
+        const circle = await this.circles.readOne({ _id: circleId });
+        if (!circle) throw new NotFoundError(`Circle ${circleId} does not exist`);
+        
+        //assert user is admin
+        circle.title = newTitle;
+        await this.circles.partialUpdateOne({ _id: circleId }, { title: circle.title });
+        
+        return { msg: "Renamed the circle", circle };
+      }
 
+      async getCircles() {
+        return await this.circles.readMany({}, { sort: { _id: -1 } });
+      }
 
+      
 
 }

@@ -39,11 +39,14 @@ export default class PostingConcept {
     return { msg: "Post successfully updated!" };
   }
 
-  async viewPosts(group: ObjectId) {
+  async getPosts() {
+    return await this.posts.readMany({}, { sort: { _id: -1 } });
+  }
+  async getPostsByCircle(group: ObjectId) {
     return await this.posts.readMany({ group }, { sort: { timePost: -1 } });
   }
 
-  async viewUserPosts(author: ObjectId) {
+  async getByAuthor(author: ObjectId) {
     return await this.posts.readMany({ author }, { sort: { timePost: -1 } });
   }
 

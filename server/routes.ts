@@ -2,7 +2,7 @@ import { ObjectId } from "mongodb";
 
 import { Router, getExpressRouter } from "./framework/router";
 
-import { Authing, Friending, Posting, Sessioning } from "./app";
+import { Authing, Calling, Circling, Posting, Sessioning } from "./app";
 import { PostOptions } from "./concepts/posting";
 import { SessionDoc } from "./concepts/sessioning";
 import Responses from "./responses";
@@ -75,8 +75,8 @@ class Routes {
   async getPosts(author?: string) {
     let posts;
     if (author) {
-      const id = (await Authing.getUserByUsername(author))._id;
-      posts = await Posting.getByAuthor(id);
+      const user_id = (await Authing.getUserByUsername(author))._id;
+      posts = await Posting.getByAuthor(user_id);
     } else {
       posts = await Posting.getPosts();
     }
@@ -84,18 +84,20 @@ class Routes {
   }
 
   @Router.post("/posts")
-  async createPost(session: SessionDoc, content: string, options?: PostOptions) {
+  async createPost(session: SessionDoc, content: string, circle: string, timePost?: Date,  options?: PostOptions) {
     const user = Sessioning.getUser(session);
-    const created = await Posting.create(user, content, options);
+    //get circle?
+    const oid = new ObjectId(circle);
+    const created = await Posting.addPost(user, content, oid, timePost, options);
     return { msg: created.msg, post: await Responses.post(created.post) };
   }
 
   @Router.patch("/posts/:id")
-  async updatePost(session: SessionDoc, id: string, content?: string, options?: PostOptions) {
+  async editPost(session: SessionDoc, id: string, content?: string, options?: PostOptions) {
     const user = Sessioning.getUser(session);
     const oid = new ObjectId(id);
-    await Posting.assertAuthorIsUser(oid, user);
-    return await Posting.update(oid, content, options);
+    //await Posting.assertAuthorIsUser(oid, user);
+    return await Posting.editPost(user, oid, content, options);
   }
 
   @Router.delete("/posts/:id")
@@ -106,52 +108,119 @@ class Routes {
     return Posting.delete(oid);
   }
 
-  @Router.get("/friends")
-  async getFriends(session: SessionDoc) {
-    const user = Sessioning.getUser(session);
-    return await Authing.idsToUsernames(await Friending.getFriends(user));
+  @Router.post("/circles")
+  async createCircle(session: SessionDoc, title: String, capacity: number) {
+    const admin = Sessioning.getUser(session);
+    const created = await Circling.createCircle(title, admin, capacity);
+    //return { msg: created.msg, circle: await Responses.post(created.circle) };
+    return { msg: created.msg, circle: created.circle}
   }
 
-  @Router.delete("/friends/:friend")
-  async removeFriend(session: SessionDoc, friend: string) {
-    const user = Sessioning.getUser(session);
-    const friendOid = (await Authing.getUserByUsername(friend))._id;
-    return await Friending.removeFriend(user, friendOid);
+  @Router.get("/circles")
+  @Router.validate(z.object({ author: z.string().optional() }))
+  async getCircles(filter?: string[]) {
+    let circles;
+    if (filter) {
+      //filter circles based on title, tag, etc
+    } else {
+      circles = await Circling.getCircles();
+    }
+    return circles;
   }
 
-  @Router.get("/friend/requests")
-  async getRequests(session: SessionDoc) {
+  @Router.patch("/circles/:id")
+  async editCircle(session: SessionDoc, id: string, newTitle: string) {
     const user = Sessioning.getUser(session);
-    return await Responses.friendRequests(await Friending.getRequests(user));
+    const oid = new ObjectId(id);
+    return await Circling.renameCircle(user, newTitle, oid);
   }
 
-  @Router.post("/friend/requests/:to")
-  async sendFriendRequest(session: SessionDoc, to: string) {
+  @Router.patch("/circles/:id")
+  async joinCircle(session: SessionDoc, id: string) {
     const user = Sessioning.getUser(session);
-    const toOid = (await Authing.getUserByUsername(to))._id;
-    return await Friending.sendRequest(user, toOid);
+    const oid = new ObjectId(id);
+    return await Circling.joinCircle(user, oid);
   }
 
-  @Router.delete("/friend/requests/:to")
-  async removeFriendRequest(session: SessionDoc, to: string) {
+  @Router.patch("/circles/:id")
+  async leaveCircle(session: SessionDoc, id: string) {
     const user = Sessioning.getUser(session);
-    const toOid = (await Authing.getUserByUsername(to))._id;
-    return await Friending.removeRequest(user, toOid);
+    const oid = new ObjectId(id);
+    return await Circling.leaveCircle(user, oid);
   }
 
-  @Router.put("/friend/accept/:from")
-  async acceptFriendRequest(session: SessionDoc, from: string) {
-    const user = Sessioning.getUser(session);
-    const fromOid = (await Authing.getUserByUsername(from))._id;
-    return await Friending.acceptRequest(fromOid, user);
+  @Router.post("/calls")
+  async startCall(session: SessionDoc, circle: string) {
+    const admin = Sessioning.getUser(session);
+    const circle_oid = new ObjectId(circle);
+    const created = await Calling.startCall(admin, circle_oid);
+    return { msg: created.msg, call: created.call}
   }
 
-  @Router.put("/friend/reject/:from")
-  async rejectFriendRequest(session: SessionDoc, from: string) {
+  @Router.patch("/calls/:id")
+  async joinCall(session: SessionDoc, id: string) {
     const user = Sessioning.getUser(session);
-    const fromOid = (await Authing.getUserByUsername(from))._id;
-    return await Friending.rejectRequest(fromOid, user);
+    const oid = new ObjectId(id);
+    return await Calling.joinCall(user, oid);
   }
+
+  @Router.patch("/calls/:id")
+  async switchParticipantModeInCall(session: SessionDoc, id: string) {
+    const user = Sessioning.getUser(session);
+    const oid = new ObjectId(id);
+    return await Calling.switchParticipantMode(user, oid);
+  }
+
+  @Router.patch("/calls/:id")
+  async callNextSpeakerInCall(session: SessionDoc, id: string) {
+    const user = Sessioning.getUser(session);
+    const oid = new ObjectId(id);
+    return await Calling.callNextSpeaker(user, oid);
+  }
+
+  @Router.patch("/calls/:id")
+  async muteSwitchInCall(session: SessionDoc, id: string) {
+    const user = Sessioning.getUser(session);
+    const oid = new ObjectId(id);
+    return await Calling.muteSwitch(user, oid);
+  }
+
+  @Router.patch("/calls/:id")
+  async leaveCall(session: SessionDoc, id: string) {
+    const user = Sessioning.getUser(session);
+    const oid = new ObjectId(id);
+    return await Calling.leaveCall(user, oid);
+  }
+
+  @Router.patch("/calls/:id") //maybe delete? but i simply update the isOngoing property
+  async endCall(session: SessionDoc, id: string) {
+    const user = Sessioning.getUser(session);
+    const oid = new ObjectId(id);
+    return await Calling.endCall(user, oid);
+  }
+
+  @Router.post("/events")
+  async createEvent(session: SessionDoc) {
+    //under development
+    //will have two options: if recurrence given, set up single event, but if not, set up recurring event
+  }
+
+  @Router.get("/events:id")
+  async getEventTime(session: SessionDoc, id: string) {
+    //under development
+  }
+
+  @Router.get("/events")
+  async getUpcomingEvents(session: SessionDoc) {
+    //under development
+  }
+
+  @Router.delete("/events:id")
+  async deleteEvent(session: SessionDoc,id: string) {
+    //under development
+  }
+
+
 }
 
 /** The web app. */
