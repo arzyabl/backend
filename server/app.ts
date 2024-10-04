@@ -13,4 +13,3 @@ export const Posting = new PostingConcept("posts");
 export const Friending = new FriendingConcept("friends");
 export const Circling = new CirclingConcept("circles");
 export const Calling = new CallingConcept("calls");
-

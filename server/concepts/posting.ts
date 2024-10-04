@@ -11,7 +11,7 @@ export interface PostDoc extends BaseDoc {
   author: ObjectId;
   content: string;
   group: ObjectId;
-  timePost: Date;
+  timePost?: Date;
   options?: PostOptions;
 }
 
@@ -28,8 +28,8 @@ export default class PostingConcept {
     this.posts = new DocCollection<PostDoc>(collectionName);
   }
 
-  async addPost(author: ObjectId, content: string, options?: PostOptions) {
-    const _id = await this.posts.createOne({ author, content, options });
+  async addPost(author: ObjectId, content: string, group: ObjectId, timePost?: Date, options?: PostOptions) {
+    const _id = await this.posts.createOne({ author, content, group, timePost, options});
     return { msg: "Post successfully created!", post: await this.posts.readOne({ _id }) };
   }
 
@@ -42,7 +42,7 @@ export default class PostingConcept {
   async getPosts() {
     return await this.posts.readMany({}, { sort: { _id: -1 } });
   }
-  async getPostsByCircle(group: ObjectId) {
+  async getPostsByGroup(group: ObjectId) {
     return await this.posts.readMany({ group }, { sort: { timePost: -1 } });
   }
 

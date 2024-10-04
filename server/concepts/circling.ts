@@ -64,7 +64,7 @@ export default class CirclingConcept {
         
         await this.circles.partialUpdateOne({ _id: circleId }, { members: circle.members });
     
-        return { msg: "Left the circl", circle };
+        return { msg: "Left the circle", circle };
       }
 
       async renameCircle(admin: ObjectId, newTitle: String, circleId: ObjectId) {

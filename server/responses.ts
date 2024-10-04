@@ -19,6 +19,7 @@ export default class Responses {
     return { ...post, author: author.username };
   }
 
+
   /**
    * Same as {@link post} but for an array of PostDoc for improved performance.
    */

@@ -88,7 +88,7 @@ class Routes {
     const user = Sessioning.getUser(session);
     //get circle?
     const oid = new ObjectId(circle);
-    const created = await Posting.addPost(user, content, oid, timePost, options);
+    const created = await Posting.addPost(user, content, oid);
     return { msg: created.msg, post: await Responses.post(created.post) };
   }
 

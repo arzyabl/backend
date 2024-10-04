@@ -22,7 +22,7 @@ export default class CallingConcept {
   public readonly calls: DocCollection<CallDoc>;
 
   /**
-   * Make an instance of Posting.
+   * Make an instance of Calling
    */
   constructor(collectionName: string) {
     this.calls = new DocCollection<CallDoc>(collectionName);
