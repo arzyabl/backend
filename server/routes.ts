@@ -86,7 +86,6 @@ class Routes {
   @Router.post("/posts")
   async createPost(session: SessionDoc, content: string, circle: string, timePost?: Date,  options?: PostOptions) {
     const user = Sessioning.getUser(session);
-    //get circle?
     const oid = new ObjectId(circle);
     const created = await Posting.addPost(user, content, oid);
     return { msg: created.msg, post: await Responses.post(created.post) };
