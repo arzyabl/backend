@@ -9,9 +9,8 @@ export interface CallDoc extends BaseDoc {
     admin: ObjectId,
     participants: ObjectId[],
     listeners: ObjectId[],
-    isOngoing: Boolean,
     speakerQueue: ObjectId[],
-    isMuted: Map<ObjectId, Boolean> 
+    speakers: ObjectId[] 
 }
     
 
@@ -29,59 +28,109 @@ export default class CallingConcept {
   }
 
   async startCall(admin: ObjectId, group: ObjectId) {
+    await this.assertUserNotOnACall(admin);
+    
     const _id = await this.calls.createOne({
       admin,
       group,
       participants: [],
       listeners: [],
-      isMuted: new Map(),
       speakerQueue: [],
-      isOngoing: true,
+      speakers: [],
     });
+    
     return { msg: "Call successfully started!", call: await this.calls.readOne({ _id }) };
   }
+
+  async getAllCalls() {
+    return await this.calls.readMany({}, { sort: { _id: -1 } });
+  }
+
+  
+
+  async getCallsByGroup(group: ObjectId) {
+    return await this.calls.readMany({ group }, { sort: { timePost: -1 } });
+  }
+
+  async getCallById(id: ObjectId){
+    const call = await this.calls.readOne({ _id: id });
+    if (!call) throw new NotFoundError(`Call ${id} does not exist`);
+    return call;
+  }
+
+  async getGroupOfCall(id: ObjectId){
+    const call = await this.calls.readOne({ _id: id });
+    if (!call) throw new NotFoundError(`Call ${id} does not exist`);
+    return call.group;
+  }
+
+  async getCurrentCallOfUser(userId: ObjectId) {
+    const currentCall = await this.calls.readOne({
+      $or: [
+        { participants: userId }, 
+        { admin: userId },       
+      ],
+    });
+  
+    if (!currentCall) {
+      throw new NotFoundError(`User ${userId} is not currently on any call.`);
+    }
+  
+    return currentCall;
+  }
+  
+  
  
   async joinCall(participant: ObjectId, callId: ObjectId) {
     const call = await this.calls.readOne({ _id: callId });
     if (!call) throw new NotFoundError(`Call ${callId} does not exist`);
-    // asset user circle member
-    if (!call.participants.includes(participant)) {
-      call.participants.push(participant);
-      await this.calls.partialUpdateOne({ _id: callId }, { participants: call.participants });
-    }
+    
+    //if not on a call already (including this one) 
+    await this.assertUserNotOnACall(participant);
+    await this.assertUserNotAdmin(callId, participant);
+    
+    call.participants.push(participant);
+    call.speakerQueue.push(participant);
+
+    await this.calls.partialUpdateOne({ _id: callId }, { participants: call.participants , speakerQueue: call.speakerQueue});
 
     return { msg: "Joined the call", call };
   }
 
-  async switchParticipantMode(participant: ObjectId, callId: ObjectId) {
+  
+
+  async listenerSwitch(participant: ObjectId, callId: ObjectId) {
     const call = await this.calls.readOne({ _id: callId });
     if (!call) throw new NotFoundError(`Call ${callId} does not exist`);
-    //asser user is circle member
-    const isListener = call.listeners.includes(participant);
+
+    await this.assertUserOnCall(callId, participant);
+
+    //const isListener = call.listeners.some(l => l.toString() === participant.toString());
+    const isListener = call.listeners.some(l => l.toString() === participant.toString());
 
     if (isListener) {
-      // Move listener to participants
-      call.listeners = call.listeners.filter((l) => !l.equals(participant));
-      call.participants.push(participant);
+      // remove from listeners
+      call.listeners = call.listeners.filter(l => l.toString() !== participant.toString());
+      if (!call.speakerQueue.map(l=> l.toString()).includes(participant.toString())) {
+        call.speakerQueue.push(participant);
+      }
+
     } else {
       // Move participant to listeners
-      call.participants = call.participants.filter((p) => !p.equals(participant));
       call.listeners.push(participant);
+      call.speakerQueue = call.speakerQueue.filter((s) => s.toString() !== participant.toString());
     }
 
-    await this.calls.partialUpdateOne({ _id: callId }, { participants: call.participants, listeners: call.listeners });
+    await this.calls.partialUpdateOne({ _id: callId }, { listeners: call.listeners, speakerQueue: call.speakerQueue });
 
-    return { msg: "Switched mode", call };
+    return { msg: `Switched mode to ${isListener ? "participant": "listener"}`, call };
   }
 
   async callNextSpeaker(admin: ObjectId, callId: ObjectId) {
     const call = await this.calls.readOne({ _id: callId });
     if (!call) throw new NotFoundError(`Call ${callId} does not exist`);
 
-    //asserAdmin instead
-    if (call.admin.toString() !== admin.toString()) {
-      throw new Error("Only the admin can call the next speaker");
-    }
+    await this.assertUserIsAdmin(callId, admin);
 
     const nextSpeaker = call.speakerQueue.shift();
     if (!nextSpeaker) {
@@ -97,40 +146,100 @@ export default class CallingConcept {
   async muteSwitch(user: ObjectId, callId: ObjectId) {
     const call = await this.calls.readOne({ _id: callId });
     if (!call) throw new NotFoundError(`Call ${callId} does not exist`);
-  
-    const userIdStr = user.toString();
-    const isCurrentlyMuted = call.isMuted.get(user) ?? false;
-    call.isMuted.set(user, !isCurrentlyMuted);
-  
-    await this.calls.partialUpdateOne({ _id: callId }, { isMuted: call.isMuted });
-  
-    return { msg: `User ${userIdStr} mute status changed`, isMuted: call.isMuted.get(user) };
-  }
+
+    await this.assertUserOnCall(callId, user);
+
+    const isCurrentlySpeaker = call.speakers.some(speaker => speaker.toString() === user.toString());
+
+    if (isCurrentlySpeaker) {
+      //mute
+        call.speakers = call.speakers.filter(speaker => speaker.toString() !== user.toString());
+    } else {
+        //unmute
+        call.speakers.push(user);
+    }
+
+    await this.calls.partialUpdateOne({ _id: callId }, { speakers: call.speakers });
+
+    return { msg: `User ${user.toString()} mute status changed`, speakers: call.speakers };
+}
 
 
   async leaveCall(user: ObjectId, callId: ObjectId) {
     const call = await this.calls.readOne({ _id: callId });
     if (!call) throw new NotFoundError(`Call ${callId} does not exist`);
+    
+    await this.assertUserNotAdmin(callId, user);
+
+    await this.assertUserOnCall(callId, user);
 
     call.participants = call.participants.filter((p) => !p.equals(user));
     call.listeners = call.listeners.filter((l) => !l.equals(user));
+    call.speakerQueue = call.speakerQueue.filter((s) => !s.equals(user));
 
     await this.calls.partialUpdateOne({ _id: callId }, { participants: call.participants, listeners: call.listeners });
 
     return { msg: "Left the call", call };
   }
 
-  async endCall(admin: ObjectId, callId: ObjectId) {
-    const call = await this.calls.readOne({ _id: callId });
-    if (!call) throw new NotFoundError(`Call ${callId} does not exist`);
-    //assert admin
-    if (call.admin.toString() !== admin.toString()) {
-      throw new NotAllowedError("Only the admin can end the call");
-    }
+  async endCall(admin: ObjectId, _id: ObjectId) {
+    const call = await this.calls.readOne({ _id: _id });
+    if (!call) throw new NotFoundError(`Call ${_id} does not exist`);
+    
+    await this.assertUserIsAdmin(_id, admin);
 
-    await this.calls.partialUpdateOne({ _id: callId }, { isOngoing: false });
+    await this.calls.deleteOne({ _id});
 
     return { msg: "Call ended successfully" };
   }
+
+
+
+  async assertUserNotOnACall(userId: ObjectId) {
+    const activeCall = await this.calls.readOne({
+      $or: [
+        { participants: userId },  // Check if the user is a participant
+        { admin: userId },         // Check if the user is the admin
+      ],
+    });
+  
+    if (activeCall) {
+      throw new NotAllowedError(`User ${userId} is already in call ${activeCall._id}.`);
+    }
+  }
+  
+
+  async assertUserOnCall(callId: ObjectId, userId: ObjectId) {
+    const call = await this.calls.readOne({ _id: callId });
+    if (!call) throw new NotFoundError(`Call with ID ${callId} does not exist.`);
+  
+    const isUserInCall = call.participants.some(p => p.equals(userId));
+    if (!isUserInCall) {
+      throw new NotAllowedError(`User ${userId} is not a participant in call ${call._id}.`);
+    }
+  }
+
+
+  async assertUserIsAdmin(_id: ObjectId, user: ObjectId) {
+    const call = await this.calls.readOne({ _id });
+    if (!call) {
+      throw new NotFoundError(`Post ${_id} does not exist!`);
+    }
+    if (call.admin.toString() !== user.toString()) {
+      throw new NotAllowedError(`User ${user} is not admin of call ${_id}.`);
+    }
+  }
+
+  async assertUserNotAdmin(_id: ObjectId, user: ObjectId) {
+    const call = await this.calls.readOne({ _id });
+    if (!call) {
+      throw new NotFoundError(`Post ${_id} does not exist!`);
+    }
+    if (call.admin.toString() === user.toString()) {
+      throw new NotAllowedError(`User ${user} is the admin of call ${_id}.`);
+    }
+  }
+
+
 
 }

@@ -50,6 +50,28 @@ export default class PostingConcept {
     return await this.posts.readMany({ author }, { sort: { timePost: -1 } });
   }
 
+  async getPostLeaderboard(circle: ObjectId) {
+    const posts = await this.getPostsByGroup(circle)
+
+    //post counts for each author
+    const authorCounts: Record<string, number> = {};
+    posts.forEach(post => {
+      const authorId = post.author.toString();
+      if (authorCounts[authorId]) {
+        authorCounts[authorId] += 1; 
+      } else {
+        authorCounts[authorId] = 1;
+      }
+    });
+
+    //sort it by post count in descending order
+    const leaderboard = Object.entries(authorCounts)
+      .map(([authorId, totalPosts]) => ({ authorId, totalPosts }))
+      .sort((a, b) => b.totalPosts - a.totalPosts);
+
+    return leaderboard;
+}
+
 
   async delete(_id: ObjectId) {
     await this.posts.deleteOne({ _id });

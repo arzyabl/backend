@@ -66,7 +66,7 @@ const operations: Operation[] = [
     name: "Create Post",
     endpoint: "/api/posts",
     method: "POST",
-    fields: { content: "input" },
+    fields: { content: "input" , group: "input"},
   },
   {
     name: "Update Post",
@@ -80,9 +80,149 @@ const operations: Operation[] = [
     method: "DELETE",
     fields: { id: "input" },
   },
-  //
-  // ...
-  //
+
+  {
+    name: "Posts Leaderboard",
+    endpoint: "/api/circles/:id/leaderboard/posts",
+    method: "GET",
+    fields: { circle: "input" },
+  },
+
+  {
+    name: "Create Circle",
+    endpoint: "/api/circles",
+    method: "POST",
+    fields: { title: "input", capacity: "input", difficultylevel: "input" },
+  },
+
+  {
+    name: "Get Circles",
+    endpoint: "/api/circles",
+    method: "GET",
+    fields: {user: "input", title: "input", admin: "input", members: "input",  difficulty: "input" },
+  },
+
+  {
+    name: "Search New Circles",
+    endpoint: "/api/circles/search",
+    method: "GET",
+    fields: {keywordStr: "input" },
+  },
+  
+
+  {
+    name: "Rename Circle",
+    endpoint: "/api/circles/:id/title",
+    method: "PATCH",
+    fields: { id: "input", newTitle: "input" },
+  },
+
+  {
+    name: "Join Circle",
+    endpoint: "/api/circles/:id/members",
+    method: "PATCH",
+    fields: { id: "input" },
+  },
+
+  {
+    name: "Leave Circle",
+    endpoint: "/api/circles/:id/members",
+    method: "DELETE",
+    fields: { id: "input" },
+  },
+
+  {
+    name: "Get Calls (empty for all)",
+    endpoint: "/api/calls",
+    method: "GET",
+    fields: { id: "input" },
+  },
+
+  {
+    name: "Get Active Call of User",
+    endpoint: "/api/calls/callers",
+    method: "GET",
+    fields: {  },
+  },
+
+  {
+    name: "Start Call",
+    endpoint: "/api/calls",
+    method: "POST",
+    fields: { circle: "input"},
+  },
+
+  {
+    name: "Join Call",
+    endpoint: "/api/calls/:id/participants",
+    method: "PATCH",
+    fields: { id : "input" },
+  },
+
+  {
+    name: "Leave Call",
+    endpoint: "/api/calls/:id/participants",
+    method: "DELETE",
+    fields: { id : "input" },
+  },
+
+  {
+    name: "Switch Participant Mode",
+    endpoint: "/api/calls/:id/listeners",
+    method: "PATCH",
+    fields: { id: "input" }, 
+  },
+
+  {
+    name: "Call Next Speaker",
+    endpoint: "/api/calls/:id/next",
+    method: "PATCH",
+    fields: { id: "input" }, 
+  },
+
+  {
+    name: "Mute/Unmute",
+    endpoint: "/api/calls/:id/speakers",
+    method: "PATCH",
+    fields: { id: "input" }, 
+  },
+
+  {
+    name: "End Call",
+    endpoint: "/api/calls",
+    method: "DELETE",
+    fields: { id: "input" }, 
+   },
+
+  {
+    name: "Get Events",
+    endpoint: "/api/events",
+    method: "GET",
+    fields: {_id: "input", circle: "input"},
+  },
+
+   {
+    name: "Create Event",
+    endpoint: "/api/events",
+    method: "POST",
+    fields: { name: "input", circle: "input", type: "input", startTimeStr: "input",endTimeStr: "input", prayerName: "input", offsetMinutes: "input", durationMinutes: "input", latitude: "input", longitude: "input", recurrence: "input" },
+  },
+
+  {
+    name: "Edit Event",
+    endpoint: "/api/events/:id",
+    method: "PATCH",
+    fields: { _id: "input", name: "input", startTime: "input", endTime: "input", recurrence: "input" },
+  },
+
+  {
+    name: "Delete Event",
+    endpoint: "/api/events/:id",
+    method: "DELETE",
+    fields: {id: "input"}
+  }
+
+
 ];
 
 /*
